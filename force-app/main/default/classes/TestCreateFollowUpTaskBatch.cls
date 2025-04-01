@@ -2,39 +2,34 @@
 public with sharing class TestCreateFollowUpTaskBatch {
 
     @TestSetup
-    static void makeData(){
+    static void makeData() {
+        // Crée un compte sans commande (cible du batch)
+        DataFactory.createAccount('testAccount1');
 
-        // Create test accounts
-        Account testAccount1 = DataFactory.createAccount('testAccount1');
-        insert testAccount1;
-
+        // Crée un compte avec commande (ne doit pas être ciblé)
         DataFactory.createOrdersCompleteProcess('testAccount2', 'testProduct2', 100, 1, 1);
-        
     }
 
-    private static String CRON_EXP = '0 0 0 ? * 2#1'; // At midnight, the 1st Monday of the month, every month
+    private static String CRON_EXP = '0 0 0 ? * 2#1'; // 1er lundi du mois
 
     @isTest
-    static void testBatchExecutionCreatesReminderTasks(){
-        
+    static void testBatchExecutionCreatesReminderTasks() {
         Test.startTest();
         CreateFollowUpTaskBatch testBatch = new CreateFollowUpTaskBatch();
         Database.executeBatch(testBatch);
         Test.stopTest();
 
-        // Verify that tasks are created
         List<Task> tasksOnAccountsList = [
             SELECT Id
             FROM Task
-            WHERE WhatId IN (SELECT Id FROM Account WHERE Name LIKE 'testAccount%')
+            WHERE WhatId IN (SELECT Id FROM Account WHERE Name = 'testAccount1')
         ];
 
-        System.assertEquals(1, tasksOnAccountsList.size(), 'Unexpected number of tasks created');
+        System.assertEquals(1, tasksOnAccountsList.size(), 'A reminder task should be created for inactive account');
     }
 
     @isTest
-    static void testSchedulerCreatesScheduledJob(){
-
+    static void testSchedulerCreatesScheduledJob() {
         Test.startTest();
         CreateFollowUpTaskBatch scheduler = new CreateFollowUpTaskBatch();
         String jobId = System.schedule('Test Scheduler', CRON_EXP, scheduler);
@@ -43,10 +38,10 @@ public with sharing class TestCreateFollowUpTaskBatch {
         List<CronTrigger> cts = [
             SELECT Id, TimesTriggered, NextFireTime
             FROM CronTrigger
-            WHERE ID = :jobId];
-        System.debug('Next Fire Time' + cts[0].NextFireTime);
+            WHERE ID = :jobId
+        ];
 
-        // Verify job is scheduled
-        System.assertNotEquals(null, jobId, 'No job was scheduled');
+        System.assertNotEquals(null, jobId, 'Scheduled job ID should not be null');
+        System.assertEquals(1, cts.size(), 'One cron trigger expected');
     }
 }
