@@ -4,7 +4,7 @@ public with sharing class HandlerClass {
     public static void updateOrderStatus(List<Order> ordersList){
         for (Order order : ordersList) {
             if (order.Status == 'Activated' && order.Number_of_products__c == 0){
-                order.addError('Your Order must have at least one product to be activated');
+                order.addError('Votre commande doit contenir au moins un produit pour être activée');
             }
         }
     }
